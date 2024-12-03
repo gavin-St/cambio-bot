@@ -25,6 +25,8 @@ Rules:
     - Flipped cards also go to the top of the discard pile
 - Only one flip is allowed per played card
     - I.e. only one player may flip a card every turn
+- Flips must occur before card abilities
+    - Subject to change
 - If a player erroneously flips a card that does not match the previously played card, the player must unflip the card and draw an extra card from the deck
 - On any turn, a player may "lock" their cards, ending their turn without drawing a card and preventing any other player from interacting with their cards in the next round
     - Upon the next time it is this player's turn, the game will end
