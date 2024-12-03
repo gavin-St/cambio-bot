@@ -24,10 +24,9 @@ class Game:
         self.players = players
 
     def __str__(self):
-        players_str = '\n'.join(f"Player {player.id}: {', '.join(str(card.id) for card in player.cards)}" 
-                                for player in self.players)
-        cards_str = '\n'.join(f"Card {card.id}: {card.rank} of {card.suit}" for card in self.deck)
-        return f"Players:\n{players_str}\n\nCards:\n{cards_str}"
+        players_str = "\n".join(str(player) for player in self.players)
+        cards_str = "\n".join(str(card) for card in self.deck)
+        return f"Players:\n{players_str}\n\nDeck:\n{cards_str}"
     
     def print_player_cards(self):
         for player in self.players:
@@ -43,7 +42,7 @@ class Game:
         cards = []
         for i in range(1, 11): 
             for j in range(1, 5):
-                id = 4 * i + j
+                id = 4 * (i-1) + j
                 rank = "A" if i == 1 else str(i)
                 suit = "red" if j > 2 else "black"
                 points = i
@@ -63,6 +62,11 @@ class Game:
 
         return cards
     
+    def setup_game(self) -> None:
+        self.deck = self.generate_deck()
+        self.shuffle()
+        self.deal_cards()
+    
     def get_player_by_id(self, id) -> Player:
         return next((p for p in self.players if p.id == id), None)
 
@@ -72,12 +76,6 @@ class Game:
         card.owner = Card.DISCARD_ID
 
     def run_game(self):        
-        # Shuffles player order and deck order
-        self.shuffle()
-
-        # Deals 4 cards to each player
-        self.deal_cards()
-
         round = 0
         end_game = False
 
@@ -86,13 +84,13 @@ class Game:
             round += 1
 
             for player in self.players:
-                if locked_player.id == player.id:
+                if self.locked_player is not None and self.locked_player.id == player.id:
                     end_game = True
                     break
             
                 # Player chooses whether to lock
                 if self.use_lock(player):
-                    locked_player = player.id
+                    self.locked_player = player
                     continue
                 
                 # Player chooses to draw a card from deck or discard pile
@@ -216,14 +214,14 @@ class Game:
             checked_card = player.s_check_own_card()
             if checked_card is None:
                 return
-            player.known_cards.append(checked_card)
+            player.known_cards.add(checked_card)
             checked_card.known.add(player.id)
 
         elif played_card.rank == "9" or played_card.rank == "10":
             checked_card = player.s_check_other_card()
             if checked_card is None:
                 return
-            player.known_cards.append(checked_card)
+            player.known_cards.add(checked_card)
             checked_card.known.add(player.id)
         
         elif played_card.rank == "J" or played_card.rank == "Q":
@@ -241,7 +239,7 @@ class Game:
             checked_card = player.s_check_card_before_swap()
             if checked_card is None:
                 return
-            player.known_cards.append(checked_card)
+            player.known_cards.add(checked_card)
             checked_card.known.add(player.id)
 
             (card1, card2) = player.s_swap_cards()
@@ -257,8 +255,8 @@ class Game:
     def reset_game(self) -> None:
         for p in self.players:
             p.reset()
-        self.deck = self.generate_deck()
+        self.deck = []
         self.discard_pile = []
         self.last_discarded = None
-        self.locked_player = -1
+        self.locked_player = None
         

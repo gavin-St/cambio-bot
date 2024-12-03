@@ -28,14 +28,15 @@ class Player:
         self.cards.append(card)
         card.owner = self
         if known:
-            self.known_cards.append(card)
+            self.known_cards.add(card)
             card.known.append(self)
 
     def __str__(self):
+        card_values = ', '.join(str(c.rank) for c in self.cards) if self.cards else "No cards"
         card_ids = ', '.join(str(c.id) for c in self.cards) if self.cards else "No cards"
         known_card_ids = ', '.join(str(c.id) for c in self.known_cards) if self.known_cards else "No known cards"
         return (f"Player(ID={self.id}, Points={self.calc_points()}, "
-                f"Cards=[{card_ids}], Known Cards=[{known_card_ids}])")
+                f"Card values=[{card_values}], Card ids=[{card_ids}], Known Cards=[{known_card_ids}])")
     
     def __repr__(self):
         return self.__str__()
@@ -46,7 +47,7 @@ class Player:
     def s_draw_from_deck(self, deck, discard_pile) -> bool:
         pass
 
-    # Returns a VALID card to swap with the drawn_card, -1 if no swap
+    # Returns a VALID card to swap with the drawn_card, None if no swap
     def s_swap_card(self, drawn_card) -> Card:
         pass
 

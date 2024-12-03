@@ -9,13 +9,6 @@ class DebugModeGame(Game):
     
     def run_game(self):
         print(f"Starting the game with {len(self.players)} players and {len(self.deck)} cards.")
-        
-        # Shuffles player order and deck order
-        self.shuffle()
-
-        # Deals 4 cards to each player
-        self.deal_cards()
-
         round = 0
         end_game = False
 
@@ -28,14 +21,14 @@ class DebugModeGame(Game):
                 print(f"Player {player.id}'s turn:")
                 print(player)
 
-                if locked_player.id == player.id:
+                if self.locked_player is not None and self.locked_player.id == player.id:
                     print(f"Game has ended.")
                     end_game = True
                     break
             
                 # Player chooses whether to lock
                 if self.use_lock(player):
-                    locked_player = player.id
+                    self.locked_player = player.id
                     continue
                 
                 # Player chooses to draw a card from deck or discard pile
@@ -43,6 +36,9 @@ class DebugModeGame(Game):
 
                 # Player chooses to either swap cards or play the drawn card
                 played_card = self.play_drawn_card(player, drawn_card)
+                if played_card is None:
+                    print("No card played?")
+                    continue
                 self.play_card_into_discard(played_card)
 
                 # All players choose to possibly request card flip, game decides on only one flip or no flip if none requested
@@ -83,6 +79,9 @@ class DebugModeGame(Game):
     
     def play_drawn_card(self, player, drawn_card):
         played_card = super().play_drawn_card(player, drawn_card)
+        if played_card is None:
+            return None
+        
         if played_card.id != drawn_card.id:
             print(f"Player {player.id} swapped own card {played_card} with drawn card {drawn_card}.")
         else:

@@ -11,7 +11,7 @@ class Card:
         self.known = []
 
     def __str__(self):
-        owner_str = f"Player {self.owner}" if self.owner != -1 else "No owner"
+        owner_str = f"Player {self.owner.id}" if self.owner is not None else "No owner"
         known_str = ', '.join(map(str, self.known))
         return (f"Card(ID={self.id}, Rank={self.rank}, Suit={self.suit}, "
                 f"Points={self.points}, Owner={owner_str}, Known by: [{known_str}])")
