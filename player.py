@@ -43,35 +43,36 @@ class Player:
 ## ----------- Override Strategy -----------
 
     # Returns true to draw from deck, false to draw from discard pile
-    def draw_from_deck(self, deck, discard_pile) -> bool:
+    def s_draw_from_deck(self, deck, discard_pile) -> bool:
         pass
 
     # Returns a VALID card to swap with the drawn_card, -1 if no swap
-    def swap_card(self, drawn_card) -> Card:
+    def s_swap_card(self, drawn_card) -> Card:
         pass
 
     # Returns a VALID owned card to check, None if no cards to check
-    def check_own_card(self) -> Card:
+    def s_check_own_card(self) -> Card:
         pass
 
     # Returns a VALID card id owned by another player to check, None if no cards to check
-    def check_other_card(self) -> Card:
+    def s_check_other_card(self) -> Card:
         pass
 
-    def check_card_before_swap(self) -> Card:
+    # Returns a VALID card to check before swapping, None if no cards to check
+    def s_check_card_before_swap(self) -> Card:
         pass
 
     # Returns a VALID tuple of card to swap, (None, None) if no cards to swap
-    def swap_cards(self) -> (Card, Card):
+    def s_swap_cards(self) -> (Card, Card):
         pass
 
     # Returns a VALID card to flip, None if no flip
-    def flip_card(self, card) -> Card:
+    def s_flip_card(self, card) -> Card:
         pass
 
     # Returns a VALID card to pass after flipping another player's card, None if no card to pass
-    def pass_card(self) -> Card:
+    def s_pass_card(self) -> Card:
         pass
 
-    def should_lock(self) -> bool:
+    def s_should_lock(self) -> bool:
         pass
