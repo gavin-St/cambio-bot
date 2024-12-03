@@ -64,9 +64,10 @@ class Game:
     def get_player_by_id(self, id) -> Player:
         return next((p for p in self.players if p.id == id), None)
 
-    def get_player_card_index_by_card(self, card) -> int:
-        player = self.get_player_by_id(card.owner)
-        return next((i for i, c in enumerate(player.cards) if c.id == card.id), -1)
+    def play_card_into_discard(self, card) -> None:
+        self.last_discarded = card
+        self.discard_pile.append(card)
+        card.owner = Card.DISCARD_ID
 
     def run_game(self):
         print(f"Starting the game with {len(self.players)} players and {len(self.deck)} cards.")
@@ -104,22 +105,12 @@ class Game:
 
                 # Player chooses to either swap cards or play the drawn card
                 played_card = self.play_drawn_card(player, drawn_card)
-                
-                self.last_discarded = played_card
-                self.discard_pile.append(played_card)
-                played_card.owner = Card.DISCARD_ID
+                self.play_card_into_discard(played_card)
 
-                # All players choose to possibly request card flip, game decides on only one flip, or no flip if none requested
+                # All players choose to possibly request card flip, game decides on only one flip or no flip if none requested
                 flip = self.flip_card(played_card)
                 if flip is not None:
-                    self.last_discarded = played_card
-                    self.discard_pile.append(played_card)
-                    played_card.owner = Card.DISCARD_ID
-                    if flip.is_flip_by_owner:
-                        print(f"Player {flip.player_id} flipped their own card: {flip.flipped_card}.")
-                        player.cards.pop(self.find) # HELP
-                    else:
-                        print(f"Player {flip.player_id} flipped another player's card: {flip.flipped_card}.")
+                    self.do_flip(flip)
 
                 # Player uses card ability if drawn card is played immediately
                 if played_card.id != drawn_card.id: 
@@ -136,17 +127,11 @@ class Game:
     def deal_cards(self) -> None:
         print("Dealing cards...")
         for player in self.players:
-            player.cards.append(self.deck.pop())
-            player.cards.append(self.deck.pop())
+            player.add_card(self.deck.pop())
+            player.add_card(self.deck.pop())
             # 2 cards are known to the player
-            card = self.deck.pop()
-            card.known = [player.id]
-            player.cards.append(card)
-            player.known_cards.append(card)
-            card = self.deck.pop()
-            card.known = [player.id]
-            player.cards.append(card)
-            player.known_cards.append(card)
+            player.add_card(self.deck.pop(), True)
+            player.add_card(self.deck.pop(), True)
         self.print_player_cards()
                     
     def use_lock(self, player) -> bool:
@@ -228,6 +213,24 @@ class Game:
             return None
         
         return random.choice(requested_flips)
+    
+    def do_flip(self, flip):
+        player = self.get_player_by_id(flip.player_id)
+        if flip.is_flip_by_owner:
+            print(f"Player {flip.player_id} flipped their own card: {flip.flipped_card}.")
+            player.remove_card(flip.flipped_card)
+            self.play_card_into_discard(flip.flipped_card)
+        else:
+            print(f"Player {flip.player_id} flipped another player's card: {flip.flipped_card}.")
+            other_player = flip.flipped_card.owner
+            other_player.remove_card(flip.flipped_card)
+            self.play_card_into_discard(flip.flipped_card)
+
+            # player chooses which card to pass to other_player
+            passed_card = player.pass_card()
+            print(f"Player {flip.player_id} passes {passed_card} to other player: {other_player.id}.")
+            player.remove_card(passed_card)
+            other_player.add_card(passed_card)
 
     def use_card_ability(self, player, played_card):
         if played_card.rank == "7" or played_card.rank == "8":
@@ -243,6 +246,15 @@ class Game:
                 return
             player.known_cards.append(checked_card)
             checked_card.known.add(player.id)
+        
+        elif played_card.rank == "J" or played_card.rank == "Q":
+            (card1, card2) = player.swap_cards()
+            if card1 is None:
+                return
+            riufh
+        
+        elif played_card.rank == "K":
+            pass
 
     def reset_game(self) -> None:
         for p in self.players:

@@ -17,6 +17,20 @@ class Player:
             sum += c.points
         return sum
     
+    def get_card_index_by_card(self, card) -> int:
+        return (i for i, c in enumerate(self.cards) if c.id == card.id)
+
+    def remove_card(self, card):
+        index = self.get_card_index_by_card(card)
+        self.cards.pop(index)
+
+    def add_card(self, card, known=False):
+        self.cards.append(card)
+        card.owner = self
+        if known:
+            self.known_cards.append(card)
+            card.known.append(self)
+
     def __str__(self):
         card_ids = ', '.join(str(c.id) for c in self.cards) if self.cards else "No cards"
         known_card_ids = ', '.join(str(c.id) for c in self.known_cards) if self.known_cards else "No known cards"
@@ -40,22 +54,22 @@ class Player:
     def check_own_card(self) -> Card:
         pass
 
-    # Returns a VALID card id owned by another player to check, -1 if no cards to check
+    # Returns a VALID card id owned by another player to check, None if no cards to check
     def check_other_card(self) -> Card:
         pass
 
     def check_card_before_swap(self) -> Card:
         pass
 
-    # Returns a VALID tuple of card to swap, (-1, -1) if no cards to swap
+    # Returns a VALID tuple of card to swap, (None, None) if no cards to swap
     def swap_cards(self) -> (Card, Card):
         pass
 
-    # Returns a VALID card to flip, -1 if no flip
+    # Returns a VALID card to flip, None if no flip
     def flip_card(self, card) -> Card:
         pass
 
-    # Returns a VALID card to pass after flipping another player's card
+    # Returns a VALID card to pass after flipping another player's card, None if no card to pass
     def pass_card(self) -> Card:
         pass
 

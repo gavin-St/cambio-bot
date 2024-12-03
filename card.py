@@ -1,14 +1,14 @@
 class Card:
     DISCARD_ID = "DISCARD"
 
-    def __init__(self, id, rank, suit, points, player_id=-1):
+    def __init__(self, id, rank, suit, points):
         self.id = id
         self.rank = rank
         self.suit = suit
         self.points = points
-        self.owner = player_id
-        # self.known is a list of player_ids that know the card
-        self.known = [player_id]
+        self.owner = None
+        # self.known is a list of players that know the card
+        self.known = []
 
     def __str__(self):
         owner_str = f"Player {self.owner}" if self.owner != -1 else "No owner"
