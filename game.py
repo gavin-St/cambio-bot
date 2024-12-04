@@ -12,6 +12,7 @@ class Flip:
 
 class Game:
     ROUND_LIMIT = 9
+    DISCARD_PILE_OWNER = Player("DISCARD", None)
 
     def __init__(self):
         self.players = []
@@ -37,6 +38,10 @@ class Game:
             else:
                 print("  No cards.")
             print() 
+
+    def print_players(self):
+        players_str = "\n".join(str(player) for player in self.players)
+        print(f"{players_str}\n")
 
     def generate_deck(self) -> list[Card]:
         cards = []
@@ -73,7 +78,7 @@ class Game:
     def play_card_into_discard(self, card) -> None:
         self.last_discarded = card
         self.discard_pile.append(card)
-        card.owner = Card.DISCARD_ID
+        card.owner = self.DISCARD_PILE_OWNER
 
     def run_game(self):        
         round = 0
@@ -126,10 +131,10 @@ class Game:
             player.add_card(self.deck.pop(), True)
                     
     def use_lock(self, player) -> bool:
-        return self.locked_player is not None and player.s_should_lock()
+        return self.locked_player is None and player.s_should_lock()
 
     def draw_card(self, player) -> Card:
-        drawn_card = self.deck.pop() if player.s_draw_from_deck(self.deck, self.discard_pile) else self.last_discarded
+        drawn_card = self.deck.pop() if player.s_draw_from_deck() else self.last_discarded
         return drawn_card
 
     def play_drawn_card(self, player, drawn_card) -> Card:
@@ -151,15 +156,15 @@ class Game:
             flipped_card = player.s_flip_card(played_card)
             if flipped_card is not None:
                 # gets index in list if flip is already requested, -1 otherwise
-                existing_index = next((i for i, flip in enumerate(requested_flips) if flip[0] == flipped_card.id), -1)
+                existing_index = next((i for i, flip in enumerate(requested_flips) if flip.flipped_card == flipped_card.id), -1)
                 is_current_flip_by_owner = player.id == flipped_card.owner
                 if existing_index != -1:
                     # if flip already exists, randomly choose between existing flip and current flip
                     if random.randint(0,1) == 1: 
                         requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card.id, player.id, is_current_flip_by_owner))
+                        requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
                 else:
-                    requested_flips.append(Flip(flipped_card.id, player.id, is_current_flip_by_owner))
+                    requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
                 
         if len(requested_flips) == 0:
             return None
@@ -173,7 +178,7 @@ class Game:
             flipped_card = player.s_flip_card(played_card)
             if flipped_card is not None:
                 # gets index in list if flip is already requested, -1 otherwise
-                existing_index = next((i for i, flip in enumerate(requested_flips) if flip[0] == flipped_card.id), -1)
+                existing_index = next((i for i, flip in enumerate(requested_flips) if flip.flipped_card == flipped_card.id), -1)
                 is_current_flip_by_owner = player.id == flipped_card.owner
                 if existing_index != -1:
                     if requested_flips[existing_index].is_flip_by_owner:
@@ -181,13 +186,13 @@ class Game:
                     # if current flip is by owner, replace existing flip with current flip
                     elif is_current_flip_by_owner: 
                         requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card.id, player.id, True))
+                        requested_flips.append(Flip(flipped_card, player.id, True))
                     # otherwise randomly choose between existing flip and current flip
                     elif random.randint(0,1) == 1: 
                         requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card.id, player.id, is_current_flip_by_owner))
+                        requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
                 else:
-                    requested_flips.append(Flip(flipped_card.id, player.id, is_current_flip_by_owner))
+                    requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
                 
         if len(requested_flips) == 0:
             return None
@@ -214,14 +219,14 @@ class Game:
             checked_card = player.s_check_own_card()
             if checked_card is None:
                 return
-            player.known_cards.add(checked_card)
+            player.known_cards.append(checked_card)
             checked_card.known.add(player.id)
 
         elif played_card.rank == "9" or played_card.rank == "10":
             checked_card = player.s_check_other_card()
             if checked_card is None:
                 return
-            player.known_cards.add(checked_card)
+            player.known_cards.append(checked_card)
             checked_card.known.add(player.id)
         
         elif played_card.rank == "J" or played_card.rank == "Q":
@@ -239,7 +244,7 @@ class Game:
             checked_card = player.s_check_card_before_swap()
             if checked_card is None:
                 return
-            player.known_cards.add(checked_card)
+            player.known_cards.append(checked_card)
             checked_card.known.add(player.id)
 
             (card1, card2) = player.s_swap_cards()
