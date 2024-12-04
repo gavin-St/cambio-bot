@@ -4,6 +4,8 @@ class Player:
     def __init__(self, id, game):
         self.id = id
         self.game = game
+        self.total_points = 0
+        self.total_wins = 0
         self.cards = []
         self.known_cards = []
     
@@ -20,19 +22,20 @@ class Player:
     def get_max_own_card(self):
         max_card = None
         for card in self.cards:
-            if max_card is None or card.points > max_card.points:
+            if max_card is None or self.get_card_value(card) > max_card.points:
                 max_card = card
         return max_card
     
     def get_min_other_card(self):
         min_card = None
-        for card in self.known_cards:
-            if card.owner.id == self.id or self.id not in card.known:
-                continue
-            if self.game.locked_player is not None and card.owner.id == self.game.locked_player.id:
-                continue
-            if min_card is None or card.points < min_card.points:
-                min_card = card
+        for player in self.game.players:
+            for card in player.cards:
+                if card.owner.id == "DISCARD" or card.owner.id == self.id:
+                    continue
+                if self.game.locked_player is not None and card.owner.id == self.game.locked_player.id:
+                    continue
+                if min_card is None or self.get_card_value(card) < min_card.points:
+                    min_card = card
         return min_card
     
     def get_card_index_by_card(self, card) -> int:
@@ -54,6 +57,13 @@ class Player:
         if known:
             self.known_cards.append(card)
             card.known.add(self.id)
+    
+    def add_card_all_known(self, card, players):
+        self.cards.append(card)
+        card.owner = self
+        for player in players:
+            player.known_cards.append(card)
+            card.known.add(player.id)
 
     def __str__(self):
         card_values = ', '.join(str(c.rank) for c in self.cards) if self.cards else "No cards"
@@ -67,14 +77,25 @@ class Player:
 
 ## ----------- Override Strategy -----------
 
+    def get_card_value(self, card):
+        if self.id in card.known:
+            return card.points
+        return card.likely_value
+
+    def calc_points_unknown(self):
+        sum = 0
+        for c in self.cards:
+            sum += self.get_card_value(c)
+        return sum
+
     # Returns true to draw from deck, false to draw from discard pile
     def s_draw_from_deck(self) -> bool:
-        return self.game.last_discarded is None or self.game.last_discarded.points > 5
+        return not self.game.discard_pile or self.s_swap_card(self.game.discard_pile[-1]) is None or self.game.discard_pile[-1].points < 4
 
     # Returns a VALID card to swap with the drawn_card, None if no swap
     def s_swap_card(self, drawn_card) -> Card:
         for card in self.known_cards:
-            if card.owner.id == self.id and card.points > drawn_card.points:
+            if card.owner.id == self.id and self.get_card_value(card) > drawn_card.points:
                 return card
         return None
 
@@ -117,6 +138,8 @@ class Player:
             if known_card.owner.id != self.id and known_card.rank == card.rank:
                 return known_card
         for known_card in self.known_cards:
+            if known_card.points < 1:
+                continue
             if known_card.owner is None or known_card.owner.id == "DISCARD":
                 continue
             if known_card.owner.id == self.id and known_card.rank == card.rank:
@@ -128,4 +151,4 @@ class Player:
         return self.get_max_own_card()
 
     def s_should_lock(self) -> bool:
-        return self.calc_points() <= 7
+        return self.calc_points_unknown() <= 7

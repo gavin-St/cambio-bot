@@ -7,6 +7,8 @@ class Card:
         self.owner = None
         # self.known is a list of player ids that know the card
         self.known = set()
+        # self.likely_value is the most likely value of the card, if not known
+        self.likely_value = 6
 
     def __str__(self):
         owner_str = f"{self.owner.id}" if self.owner is not None else "No owner"

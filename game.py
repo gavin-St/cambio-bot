@@ -2,20 +2,42 @@ import random
 from card import Card
 from player import Player
 
+# IMPLEMENT CHECK Flip - DONE
+# PERCENTAGE OF FLIP Warning - DONE
+# BETTER BASIC STRATEGY
+# STORE CARD HISTORY 
+# OWN FLIP PRIORITY - DONE
+
 class Flip:
-    def __init__(self, flipped_card, player_id, is_flip_by_owner):
+    def __init__(self, flipped_card, player):
         self.flipped_card = flipped_card
-        self.player_id = player_id
-        self.is_flip_by_owner = is_flip_by_owner
+        self.player = player
     def __str__(self):
-        return f"Flip(card={self.flipped_card}, player_id={self.player_id}, is_flip_by_owner={self.is_flip_by_owner})"
+        return f"Flip(card={self.flipped_card}, player={self.player})"
+
+class FlipRequest:
+    def __init__(self, players=[], weights=[]):
+        self.players = players
+        self.weights = weights
 
 class Game:
     ROUND_LIMIT = 9
     DISCARD_PILE_OWNER = Player("DISCARD", None)
+    DEFAULT_FLIP_REQUEST_WEIGHT = 1
+    OWNER_FLIP_REQUEST_WEIGHT = 3
+    DEFAULT_FLIP_WEIGHT = 1
+    NON_CONTESTED_FLIP_WEIGHT = 2
 
     def __init__(self):
         self.players = []
+        self.deck = []
+        self.discard_pile = []
+        self.total_rounds = 0
+        self.locked_player = None
+
+    def reset_game(self) -> None:
+        for p in self.players:
+            p.reset()
         self.deck = []
         self.discard_pile = []
         self.last_discarded = None
@@ -72,23 +94,42 @@ class Game:
         self.shuffle()
         self.deal_cards()
     
-    def get_player_by_id(self, id) -> Player:
-        return next((p for p in self.players if p.id == id), None)
+    def shuffle(self) -> None:
+        random.shuffle(self.players)
+        random.shuffle(self.deck)
+
+    def deal_cards(self) -> None:
+        for player in self.players:
+            player.add_card(self.deck.pop())
+            player.add_card(self.deck.pop())
+            # 2 cards are known to the player
+            player.add_card(self.deck.pop(), True)
+            player.add_card(self.deck.pop(), True)
+    
+    def deal_cards_all_known(self):
+        for player in self.players:
+            player.add_card_all_known(self.deck.pop(), self.players)
+            player.add_card_all_known(self.deck.pop(), self.players)
+            player.add_card_all_known(self.deck.pop(), self.players)
+            player.add_card_all_known(self.deck.pop(), self.players)
+    
 
     def play_card_into_discard(self, card) -> None:
-        self.last_discarded = card
         self.discard_pile.append(card)
         card.owner = self.DISCARD_PILE_OWNER
 
-    def run_game(self):        
+    def run_game(self):
         round = 0
         end_game = False
 
         # Main game loop
         while round < self.ROUND_LIMIT and not end_game:
             round += 1
+            # print(f"Round {round}:")
 
             for player in self.players:
+                # print(f"\nPlayer {player.id}'s turn:")
+                # self.print_players()
                 if self.locked_player is not None and self.locked_player.id == player.id:
                     end_game = True
                     break
@@ -106,35 +147,67 @@ class Game:
                 self.play_card_into_discard(played_card)
 
                 # All players choose to possibly request card flip, game decides on only one flip or no flip if none requested
-                flip = self.flip_card(played_card)
+                flip = self.get_flip(played_card)
                 if flip is not None:
                     self.do_flip(flip)
+                if self.is_player_w_no_cards():
+                    end_game = True
+                    break
 
                 # Player uses card ability if drawn card is played immediately
                 if played_card.id != drawn_card.id: 
                     continue
                 self.use_card_ability(player, played_card)
-        
-        for player in self.players:
-            print(f"Player {player.id} has {player.calc_points()} points.")
-    
-    def shuffle(self) -> None:
-        random.shuffle(self.players)
-        random.shuffle(self.deck)
 
-    def deal_cards(self) -> None:
+                # Possible new flip requested after checking a card
+                if flip is None:
+                    flip = self.get_flip(played_card)
+                    if flip is not None:
+                        self.do_flip(flip)
+        
+                if self.is_player_w_no_cards():
+                    end_game = True
+                    break
+
+            if round == self.ROUND_LIMIT:
+                end_game = True
+        
+        print("\n--------------------------------------------------------------")
+        winner = self.calc_winner()
+        print(f"Player {winner.id} wins in {round} rounds with {winner.calc_points()} points!")
+        winner.total_wins += 1
+        # print("Point standings:")
         for player in self.players:
-            player.add_card(self.deck.pop())
-            player.add_card(self.deck.pop())
-            # 2 cards are known to the player
-            player.add_card(self.deck.pop(), True)
-            player.add_card(self.deck.pop(), True)
+            player.total_points += player.calc_points()
+            # print(f"{player.id}: {player.calc_points()} points this game, {player.total_points} total.")
+        print("--------------------------------------------------------------\n")
+        self.total_rounds += round
+    
+    def is_player_w_no_cards(self) -> bool:
+        for player in self.players:
+            if len(player.cards) == 0:
+                return True
+        return False
+    
+    def calc_winner(self) -> Player:
+        for player in self.players:
+            if len(player.cards) == 0:
+                return player
+        winner = min(self.players, key=lambda p: p.calc_points())
+        return winner
                     
     def use_lock(self, player) -> bool:
         return self.locked_player is None and player.s_should_lock()
 
     def draw_card(self, player) -> Card:
-        drawn_card = self.deck.pop() if player.s_draw_from_deck() else self.last_discarded
+        draws_from_deck = player.s_draw_from_deck()
+        drawn_card = self.deck.pop() if draws_from_deck else self.discard_pile.pop()
+        if not draws_from_deck:
+            for player in self.players:
+                drawn_card.known.add(player.id)
+                player.known_cards.append(drawn_card)
+        
+        # print(f"Player {player.id} draws card {drawn_card} from {"deck" if draws_from_deck else "discard pile"}.")
         return drawn_card
 
     def play_drawn_card(self, player, drawn_card) -> Card:
@@ -145,64 +218,39 @@ class Game:
             player.add_card(drawn_card, True)
         return played_card
     
-    # We assume equal probability of any flip occuring, even if the player owns the card.
-    # If 2 players request a flip of the same card, we first randomly choose who requests that card,
-    #   then choose randomly between all other flips.
-    # This is because irl, 2 people flipping the same card would have a lower individual chance of being first
-    #  compared to a 3rd player flipping a different card.
-    def flip_card(self, played_card) -> Flip:
-        requested_flips = []
+    def get_flip(self, played_card) -> Flip:
+        flip_requests = {}
+
+        # get all flip requests, and their probability to get chosen
         for player in self.players:
-            flipped_card = player.s_flip_card(played_card)
-            if flipped_card is not None:
-                # gets index in list if flip is already requested, -1 otherwise
-                existing_index = next((i for i, flip in enumerate(requested_flips) if flip.flipped_card == flipped_card.id), -1)
-                is_current_flip_by_owner = player.id == flipped_card.owner
-                if existing_index != -1:
-                    # if flip already exists, randomly choose between existing flip and current flip
-                    if random.randint(0,1) == 1: 
-                        requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                else:
-                    requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                
-        if len(requested_flips) == 0:
+            requested_card = player.s_flip_card(played_card)
+            if requested_card is None:
+                continue
+            flip_request_weight = self.OWNER_FLIP_REQUEST_WEIGHT if requested_card.owner.id == player.id else self.DEFAULT_FLIP_REQUEST_WEIGHT
+            if requested_card in flip_requests:
+                flip_requests[requested_card].players.append(player)
+                flip_requests[requested_card].weights.append(flip_request_weight)
+            else:
+                flip_requests[requested_card] = FlipRequest([player],[flip_request_weight])
+
+        if not flip_requests:
             return None
         
-        return random.choice(requested_flips)
-    
-    # We prioritize flips by the owner of the flipped card, same randomness as above
-    def flip_card_prioritize_owner(self, played_card) -> Flip:
-        requested_flips = []
-        for player in self.players:
-            flipped_card = player.s_flip_card(played_card)
-            if flipped_card is not None:
-                # gets index in list if flip is already requested, -1 otherwise
-                existing_index = next((i for i, flip in enumerate(requested_flips) if flip.flipped_card == flipped_card.id), -1)
-                is_current_flip_by_owner = player.id == flipped_card.owner
-                if existing_index != -1:
-                    if requested_flips[existing_index].is_flip_by_owner:
-                        continue
-                    # if current flip is by owner, replace existing flip with current flip
-                    elif is_current_flip_by_owner: 
-                        requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card, player.id, True))
-                    # otherwise randomly choose between existing flip and current flip
-                    elif random.randint(0,1) == 1: 
-                        requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                else:
-                    requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                
-        if len(requested_flips) == 0:
-            return None
+        # resolve multiple flip requests on the same card
+        flip_request_winners = []
+        flip_request_winners_weights = []
+        for card, flip_request in flip_requests.items():
+            flip_request_winner = random.choices(flip_request.players, weights=flip_request.weights, k=1)[0]
+            flip_request_winners.append(Flip(card, flip_request_winner))
+            weight = self.NON_CONTESTED_FLIP_WEIGHT if len(flip_request.players) == 1 else self.DEFAULT_FLIP_WEIGHT
+            flip_request_winners_weights.append(weight)
         
-        return random.choice(requested_flips)
+        return random.choices(flip_request_winners, weights=flip_request_winners_weights, k=1)[0]
     
     def do_flip(self, flip):
-        player = self.get_player_by_id(flip.player_id)
-        if flip.is_flip_by_owner:
-            player.remove_card(flip.flipped_card)
+        is_flip_by_owner = flip.flipped_card.owner.id == flip.player.id
+        if is_flip_by_owner:
+            flip.player.remove_card(flip.flipped_card)
             self.play_card_into_discard(flip.flipped_card)
         else:
             other_player = flip.flipped_card.owner
@@ -210,8 +258,10 @@ class Game:
             self.play_card_into_discard(flip.flipped_card)
 
             # player chooses which card to pass to other_player
-            passed_card = player.s_pass_card()
-            player.remove_card(passed_card)
+            passed_card = flip.player.s_pass_card()
+            if passed_card is None:
+                return
+            flip.player.remove_card(passed_card)
             other_player.add_card(passed_card)
 
     def use_card_ability(self, player, played_card):
@@ -256,12 +306,4 @@ class Game:
             player2.add_card(card1)
             player2.remove_card(card2)
             player1.add_card(card2)
-
-    def reset_game(self) -> None:
-        for p in self.players:
-            p.reset()
-        self.deck = []
-        self.discard_pile = []
-        self.last_discarded = None
-        self.locked_player = None
         

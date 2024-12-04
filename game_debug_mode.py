@@ -1,16 +1,25 @@
 import random
-from game import Game, Flip
+from game import Game, FlipRequest, Flip
 from card import Card
 from player import Player
 
 class Game_DebugMode(Game):
     DEBUG_ROUND_LIMIT = 9
+    DEFAULT_FLIP_REQUEST_WEIGHT = 1
+    OWNER_FLIP_REQUEST_WEIGHT = 3
+    DEFAULT_FLIP_WEIGHT = 1
+    NON_CONTESTED_FLIP_WEIGHT = 2
 
     def __init__(self):
         super().__init__()
+        
+    def setup_game(self) -> None:
+        self.deck = self.generate_deck()
+        self.shuffle()
+        self.deal_cards()
     
     def run_game(self):
-        print("\n\n")
+        print("\n")
         print(f"Starting the game in debug mode with {len(self.players)} players and {len(self.deck)} cards in deck.")
         round = 0
         end_game = False
@@ -22,7 +31,7 @@ class Game_DebugMode(Game):
             print(f"Round {round}:")
 
             for player in self.players:
-                print("Player standings:")
+                print("Players summary:")
                 self.print_players()
 
                 print(f"Player {player.id}'s turn:")
@@ -42,27 +51,47 @@ class Game_DebugMode(Game):
 
                 # Player chooses to either swap cards or play the drawn card
                 played_card = self.play_drawn_card(player, drawn_card)
-                if played_card is None:
-                    print("No card played?")
-                    continue
                 self.play_card_into_discard(played_card)
 
                 # All players choose to possibly request card flip, game decides on only one flip or no flip if none requested
-                flip = self.flip_card(played_card)
+                flip = self.get_flip(played_card)
                 if flip is not None:
                     print(f"Flip accepted: {flip}")
                     self.do_flip(flip)
+                if self.is_player_w_no_cards():
+                    print(f"Player {player.id} has no cards left, ending game.")
+                    end_game = True
+                    break
 
                 # Player uses card ability if drawn card is played immediately
                 if played_card.id != drawn_card.id: 
                     continue
                 self.use_card_ability(player, played_card)
 
-                
+                # Possible new flip requested after checking a card
+                if flip is None:
+                    flip = self.get_flip(played_card)
+                    if flip is not None:
+                        self.do_flip(flip)
+                if self.is_player_w_no_cards():
+                    print(f"Player {player.id} has no cards left, ending game.")
+                    end_game = True
+            
+            if round == self.DEBUG_ROUND_LIMIT:
+                print(f"Game has reached max rounds.")
+                end_game = True
         
+        print("\n--------------------------------------------------------------")
+        winner = self.calc_winner()
+        print(f"Player {winner.id} wins in {round} rounds with {winner.calc_points()} points!")
+        winner.total_wins += 1
+        print("Point standings:")
         for player in self.players:
-            print(f"Player {player.id} has {player.calc_points()} points.")
-
+            player.total_points += player.calc_points()
+            print(f"{player.id}: {player.calc_points()} points this game, {player.total_points} total.")
+        print("--------------------------------------------------------------\n")
+        self.total_rounds += round
+    
     def shuffle(self):
         print("Shuffling players and cards...")
         super().shuffle()
@@ -74,6 +103,11 @@ class Game_DebugMode(Game):
         super().deal_cards()
         # self.print_player_cards()
 
+    def deal_cards_all_known(self):
+        print("Dealing cards with all known cards...")
+        super().deal_cards_all_known()
+        self.print_player_cards()
+
     def use_lock(self, player):
         lock = super().use_lock(player)
         if lock:
@@ -81,14 +115,13 @@ class Game_DebugMode(Game):
         return lock
 
     def draw_card(self, player):
+        draws_from_deck = player.s_draw_from_deck()
         drawn_card = super().draw_card(player)
-        print(f"Player {player.id} draws card {drawn_card} from {"deck" if player.s_draw_from_deck() else "discard pile"}.")
+        print(f"Player {player.id} draws card {drawn_card} from {"deck" if draws_from_deck else "discard pile"}.")
         return drawn_card
     
     def play_drawn_card(self, player, drawn_card):
         played_card = super().play_drawn_card(player, drawn_card)
-        if played_card is None:
-            return None
         
         if played_card.id != drawn_card.id:
             print(f"Player {player.id} swapped own card {played_card} with drawn card {drawn_card}.")
@@ -96,80 +129,56 @@ class Game_DebugMode(Game):
             print(f"Player {player.id} did not swap cards and played {drawn_card} immediately.")
         return played_card
     
-    def flip_card(self, played_card) -> Flip:
-        requested_flips = []
+    def get_flip(self, played_card) -> Flip:
+        flip_requests = {}
+
+        # get all flip requests, and their probability to get chosen
         for player in self.players:
-            flipped_card = player.s_flip_card(played_card)
-            if flipped_card is not None:
-                print(f"Player {player.id} requests to flip card {flipped_card}.")
-                # gets index in list if flip is already requested, -1 otherwise
-                existing_index = next((i for i, flip in enumerate(requested_flips) if flip.flipped_card.id == flipped_card.id), -1)
-                is_current_flip_by_owner = player.id == flipped_card.owner.id
-                if existing_index != -1:
-                    # if flip already exists, randomly choose between existing flip and current flip
-                    if random.randint(0,1) == 1: 
-                        print(f"Card is already requested, player {player.id} wins flip request.")
-                        requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                    else:
-                        print(f"Card is already requested, player {player.id} loses flip request.")
-                else:
-                    print(f"Card is not requested yet, player {player.id} makes flip request.")
-                    requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                
-        if len(requested_flips) == 0:
+            requested_card = player.s_flip_card(played_card)
+            if requested_card is None:
+                continue
+            flip_request_weight = self.OWNER_FLIP_REQUEST_WEIGHT if requested_card.owner.id == player.id else self.DEFAULT_FLIP_REQUEST_WEIGHT
+            print(f"Player {player.id} requests to flip card {requested_card}, weight: {flip_request_weight}.")
+            if requested_card in flip_requests:
+                flip_requests[requested_card].players.append(player)
+                flip_requests[requested_card].weights.append(flip_request_weight)
+            else:
+                flip_requests[requested_card] = FlipRequest([player],[flip_request_weight])
+
+        if not flip_requests:
             print("No flips requested.")
             return None
         
-        return random.choice(requested_flips)
-    
-    def flip_card_prioritize_owner(self, played_card) -> Flip:
-        requested_flips = []
-        for player in self.players:
-            flipped_card = player.s_flip_card(played_card)
-            if flipped_card is not None:
-                print(f"Player {player.id} requests to flip card {flipped_card}.")
-                existing_index = next((i for i, flip in enumerate(requested_flips) if flip.flipped_card.id == flipped_card.id), -1)
-                is_current_flip_by_owner = player.id == flipped_card.owner.id
-                if existing_index != -1:
-                    if requested_flips[existing_index].is_flip_by_owner:
-                        print(f"Card is already requested by owner, overrides new flip request.")
-                        continue
-                    # if current flip is by owner, replace existing flip with current flip
-                    elif is_current_flip_by_owner:
-                        print(f"Card is already requested, player {player.id} is the owner so overrides flip request.")
-                        requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card, player.id, True))
-                    # otherwise randomly choose between existing flip and current flip
-                    elif random.randint(0,1) == 1:
-                        print(f"Card is already requested, both not owner, player {player.id} wins flip request.")
-                        requested_flips.pop(existing_index)
-                        requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                else:
-                    print(f"Card is not requested yet, player {player.id} makes flip request.")
-                    requested_flips.append(Flip(flipped_card, player.id, is_current_flip_by_owner))
-                
-        if len(requested_flips) == 0:
-            return None
+        # resolve multiple flip requests on the same card
+        flip_request_winners = []
+        flip_request_winners_weights = []
+        for card, flip_request in flip_requests.items():
+            flip_request_winner = random.choices(flip_request.players, weights=flip_request.weights, k=1)[0]
+            flip_request_winners.append(Flip(card, flip_request_winner))
+            weight = self.NON_CONTESTED_FLIP_WEIGHT if len(flip_request.players) == 1 else self.DEFAULT_FLIP_WEIGHT
+            flip_request_winners_weights.append(weight)
+            print(f"Player {flip_request_winner.id} wins flip request for card {card}, weight: {weight}.")
         
-        return random.choice(requested_flips)
+        return random.choices(flip_request_winners, weights=flip_request_winners_weights, k=1)[0]
     
     def do_flip(self, flip):
-        player = self.get_player_by_id(flip.player_id)
-        if flip.is_flip_by_owner:
-            print(f"Player {flip.player_id} flipped their own card: {flip.flipped_card}.")
-            player.remove_card(flip.flipped_card)
+        is_flip_by_owner = flip.flipped_card.owner.id == flip.player.id
+        if is_flip_by_owner:
+            print(f"Player {flip.player.id} flipped their own card: {flip.flipped_card}.")
+            flip.player.remove_card(flip.flipped_card)
             self.play_card_into_discard(flip.flipped_card)
         else:
-            print(f"Player {flip.player_id} flipped another player's card: {flip.flipped_card}.")
+            print(f"Player {flip.player.id} flipped another player's card: {flip.flipped_card}.")
             other_player = flip.flipped_card.owner
             other_player.remove_card(flip.flipped_card)
             self.play_card_into_discard(flip.flipped_card)
 
             # player chooses which card to pass to other_player
-            passed_card = player.s_pass_card()
-            print(f"Player {flip.player_id} passes {passed_card} to other player: {other_player.id}.")
-            player.remove_card(passed_card)
+            passed_card = flip.player.s_pass_card()
+            if passed_card is None:
+                return
+            print(f"Player {flip.player.id} passes {passed_card} to other player: {other_player.id}.")
+            flip.player.remove_card(passed_card)
             other_player.add_card(passed_card)
 
     def use_card_ability(self, player, played_card):
@@ -220,8 +229,7 @@ class Game_DebugMode(Game):
             player2.remove_card(card2)
             player1.add_card(card2)
 
-        def reset_game(self):
-            super().reset_game()
-            print("Game has been reset.")
-            self.print_player_cards()
+    def reset_game(self):
+        super().reset_game()
+        print("Game has been reset.")
     
