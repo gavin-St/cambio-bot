@@ -90,10 +90,11 @@ class Player:
 
     # Returns true to draw from deck, false to draw from discard pile
     def s_draw_from_deck(self) -> bool:
-        return not self.game.discard_pile or self.s_swap_card(self.game.discard_pile[-1]) is None or self.game.discard_pile[-1].points < 4
+        if self.id == "EMMA": print(self.game.discard_pile)
+        return not self.game.discard_pile or self.s_swap_card_with_drawn(self.game.discard_pile[-1]) is None or self.game.discard_pile[-1].points > 3
 
     # Returns a VALID card to swap with the drawn_card, None if no swap
-    def s_swap_card(self, drawn_card) -> Card:
+    def s_swap_card_with_drawn(self, drawn_card) -> Card:
         for card in self.known_cards:
             if card.owner.id == self.id and self.get_card_value(card) > drawn_card.points:
                 return card

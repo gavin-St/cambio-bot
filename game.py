@@ -4,7 +4,7 @@ from player import Player
 
 # IMPLEMENT CHECK Flip - DONE
 # PERCENTAGE OF FLIP Warning - DONE
-# BETTER BASIC STRATEGY
+# BETTER BASIC STRATEGY - DONE
 # STORE CARD HISTORY 
 # OWN FLIP PRIORITY - DONE
 
@@ -28,7 +28,10 @@ class Game:
     DEFAULT_FLIP_WEIGHT = 1
     NON_CONTESTED_FLIP_WEIGHT = 2
 
-    def __init__(self):
+    def __init__(self, round_limit):
+        self.ROUND_LIMIT = round_limit
+        self.cur_round = 0
+        self.end_game = False
         self.players = []
         self.deck = []
         self.discard_pile = []
@@ -38,6 +41,8 @@ class Game:
     def reset_game(self) -> None:
         for p in self.players:
             p.reset()
+        self.cur_round = 0
+        self.end_game = False
         self.deck = []
         self.discard_pile = []
         self.last_discarded = None
@@ -119,19 +124,16 @@ class Game:
         card.owner = self.DISCARD_PILE_OWNER
 
     def run_game(self):
-        round = 0
-        end_game = False
-
         # Main game loop
-        while round < self.ROUND_LIMIT and not end_game:
-            round += 1
+        while self.cur_round < self.ROUND_LIMIT and not self.end_game:
+            self.cur_round += 1
             # print(f"Round {round}:")
 
             for player in self.players:
                 # print(f"\nPlayer {player.id}'s turn:")
                 # self.print_players()
                 if self.locked_player is not None and self.locked_player.id == player.id:
-                    end_game = True
+                    self.end_game = True
                     break
             
                 # Player chooses whether to lock
@@ -151,7 +153,7 @@ class Game:
                 if flip is not None:
                     self.do_flip(flip)
                 if self.is_player_w_no_cards():
-                    end_game = True
+                    self.end_game = True
                     break
 
                 # Player uses card ability if drawn card is played immediately
@@ -166,22 +168,22 @@ class Game:
                         self.do_flip(flip)
         
                 if self.is_player_w_no_cards():
-                    end_game = True
+                    self.end_game = True
                     break
 
-            if round == self.ROUND_LIMIT:
-                end_game = True
+            if self.cur_round == self.ROUND_LIMIT:
+                self.end_game = True
         
         print("\n--------------------------------------------------------------")
         winner = self.calc_winner()
-        print(f"Player {winner.id} wins in {round} rounds with {winner.calc_points()} points!")
+        print(f"Player {winner.id} wins in {self.cur_round} rounds with {winner.calc_points()} points!")
         winner.total_wins += 1
         # print("Point standings:")
         for player in self.players:
             player.total_points += player.calc_points()
             # print(f"{player.id}: {player.calc_points()} points this game, {player.total_points} total.")
         print("--------------------------------------------------------------\n")
-        self.total_rounds += round
+        self.total_rounds += self.cur_round
     
     def is_player_w_no_cards(self) -> bool:
         for player in self.players:
@@ -211,7 +213,7 @@ class Game:
         return drawn_card
 
     def play_drawn_card(self, player, drawn_card) -> Card:
-        swapped_card = player.s_swap_card(drawn_card)
+        swapped_card = player.s_swap_card_with_drawn(drawn_card)
         played_card = drawn_card if swapped_card is None else swapped_card
         if swapped_card is not None:
             player.remove_card(swapped_card)

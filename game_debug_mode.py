@@ -4,14 +4,13 @@ from card import Card
 from player import Player
 
 class Game_DebugMode(Game):
-    DEBUG_ROUND_LIMIT = 9
     DEFAULT_FLIP_REQUEST_WEIGHT = 1
     OWNER_FLIP_REQUEST_WEIGHT = 3
     DEFAULT_FLIP_WEIGHT = 1
     NON_CONTESTED_FLIP_WEIGHT = 2
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, round_limit):
+        super().__init__(round_limit)
         
     def setup_game(self) -> None:
         self.deck = self.generate_deck()
@@ -21,14 +20,12 @@ class Game_DebugMode(Game):
     def run_game(self):
         print("\n")
         print(f"Starting the game in debug mode with {len(self.players)} players and {len(self.deck)} cards in deck.")
-        round = 0
-        end_game = False
 
         # Main game loop
-        while round < self.DEBUG_ROUND_LIMIT and not end_game:
-            round += 1
+        while self.cur_round < self.ROUND_LIMIT and not self.end_game:
+            self.cur_round += 1
             print("\n")
-            print(f"Round {round}:")
+            print(f"Round {self.cur_round}:")
 
             for player in self.players:
                 print("Players summary:")
@@ -38,7 +35,7 @@ class Game_DebugMode(Game):
 
                 if self.locked_player is not None and self.locked_player.id == player.id:
                     print(f"Game has ended.")
-                    end_game = True
+                    self.end_game = True
                     break
             
                 # Player chooses whether to lock
@@ -75,22 +72,22 @@ class Game_DebugMode(Game):
                         self.do_flip(flip)
                 if self.is_player_w_no_cards():
                     print(f"Player {player.id} has no cards left, ending game.")
-                    end_game = True
+                    self.end_game = True
             
-            if round == self.DEBUG_ROUND_LIMIT:
+            if self.cur_round == self.ROUND_LIMIT:
                 print(f"Game has reached max rounds.")
-                end_game = True
+                self.end_game = True
         
         print("\n--------------------------------------------------------------")
         winner = self.calc_winner()
-        print(f"Player {winner.id} wins in {round} rounds with {winner.calc_points()} points!")
+        print(f"Player {winner.id} wins in {self.cur_round} rounds with {winner.calc_points()} points!")
         winner.total_wins += 1
         print("Point standings:")
         for player in self.players:
             player.total_points += player.calc_points()
             print(f"{player.id}: {player.calc_points()} points this game, {player.total_points} total.")
         print("--------------------------------------------------------------\n")
-        self.total_rounds += round
+        self.total_rounds += self.cur_round
     
     def shuffle(self):
         print("Shuffling players and cards...")
