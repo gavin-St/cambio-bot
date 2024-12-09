@@ -42,6 +42,10 @@ class Game_DebugMode(Game):
                 if self.use_lock(player):
                     self.locked_player = player
                     continue
+
+                if len(self.deck) == 0:
+                    print("Deck is all drawn, reshuffling...")
+                    self.reshuffle_discard()
                 
                 # Player chooses to draw a card from deck or discard pile
                 drawn_card = self.draw_card(player)
@@ -57,7 +61,7 @@ class Game_DebugMode(Game):
                     self.do_flip(flip)
                 if self.is_player_w_no_cards():
                     print(f"Player {player.id} has no cards left, ending game.")
-                    end_game = True
+                    self.end_game = True
                     break
 
                 # Player uses card ability if drawn card is played immediately

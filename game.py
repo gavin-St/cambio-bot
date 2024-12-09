@@ -7,6 +7,9 @@ from player import Player
 # BETTER BASIC STRATEGY - DONE
 # STORE CARD HISTORY 
 # OWN FLIP PRIORITY - DONE
+# CHANGE SWAP NAMES TO REPLACE
+# REMOVE ROUND LIMIT
+# ROUND BY ROUND LOCK STRATEGY, NEEDS TO MAKE CARD POINTS UNKNOWN TAKE A PLAYER NOT SELF
 
 class Flip:
     def __init__(self, flipped_card, player):
@@ -21,14 +24,14 @@ class FlipRequest:
         self.weights = weights
 
 class Game:
-    ROUND_LIMIT = 9
+    ROUND_LIMIT = 20
     DISCARD_PILE_OWNER = Player("DISCARD", None)
     DEFAULT_FLIP_REQUEST_WEIGHT = 1
     OWNER_FLIP_REQUEST_WEIGHT = 3
     DEFAULT_FLIP_WEIGHT = 1
     NON_CONTESTED_FLIP_WEIGHT = 2
 
-    def __init__(self, round_limit):
+    def __init__(self, round_limit=20):
         self.ROUND_LIMIT = round_limit
         self.cur_round = 0
         self.end_game = False
@@ -118,6 +121,10 @@ class Game:
             player.add_card_all_known(self.deck.pop(), self.players)
             player.add_card_all_known(self.deck.pop(), self.players)
     
+    def reshuffle_discard(self):
+        self.deck = self.discard_pile
+        random.shuffle(self.deck)
+        self.discard_pile = []
 
     def play_card_into_discard(self, card) -> None:
         self.discard_pile.append(card)
@@ -140,6 +147,9 @@ class Game:
                 if self.use_lock(player):
                     self.locked_player = player
                     continue
+
+                if len(self.deck) == 0:
+                    self.reshuffle_discard()
                 
                 # Player chooses to draw a card from deck or discard pile
                 drawn_card = self.draw_card(player)
@@ -166,7 +176,6 @@ class Game:
                     flip = self.get_flip(played_card)
                     if flip is not None:
                         self.do_flip(flip)
-        
                 if self.is_player_w_no_cards():
                     self.end_game = True
                     break
@@ -213,7 +222,7 @@ class Game:
         return drawn_card
 
     def play_drawn_card(self, player, drawn_card) -> Card:
-        swapped_card = player.s_swap_card_with_drawn(drawn_card)
+        swapped_card = player.s_replace_card_with_drawn(drawn_card)
         played_card = drawn_card if swapped_card is None else swapped_card
         if swapped_card is not None:
             player.remove_card(swapped_card)

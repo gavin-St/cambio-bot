@@ -4,23 +4,23 @@ class Player_Swap_Out_Known_Cards_Not_Known_By_Owner(Player):
     def __init__(self, id, game):
         super().__init__(id, game)
 
-    def s_swap_card_with_drawn(self, drawn_card):
+    def s_replace_card_with_drawn(self, drawn_card):
         for card in self.cards:
             if self.id in card.known:
                 continue
             if len(card.known) > 0:
                 return card
-        return super().s_swap_card_with_drawn(drawn_card)
+        return super().s_replace_card_with_drawn(drawn_card)
     
 class Player_Swap_Out_All_Known_Cards(Player):
     def __init__(self, id, game):
         super().__init__(id, game)
 
-    def s_swap_card_with_drawn(self, drawn_card):
+    def s_replace_card_with_drawn(self, drawn_card):
         for card in self.cards:
             if any([player.id != self.id for player in self.game.players]):
                 return card
-        return super().s_swap_card_with_drawn(drawn_card)
+        return super().s_replace_card_with_drawn(drawn_card)
     
     
 class Player_Swap_Out_Known_Cards_Greater_Than_n(Player):
@@ -28,11 +28,11 @@ class Player_Swap_Out_Known_Cards_Greater_Than_n(Player):
         super().__init__(id, game)
         self.n = n
 
-    def s_swap_card_with_drawn(self, drawn_card):
+    def s_replace_card_with_drawn(self, drawn_card):
         for card in self.cards:
             if any([player.id != self.id for player in self.game.players]) and self.get_card_value(card) > self.n:
                 return card
-        return super().s_swap_card_with_drawn(drawn_card)
+        return super().s_replace_card_with_drawn(drawn_card)
 
 class Player_Swap_Known_Cards(Player):
     def __init__(self, id, game):
@@ -74,3 +74,11 @@ class Player_Check_Not_Known(Player_Swap_Out_Known_Cards_Greater_Than_n):
                 if card.owner.id != self.id and self.id not in card.known and player.id not in card.known:
                     return card
         return super().s_check_other_card()
+
+class Player_Lock_If_Less_Than_b(Player):
+    def __init__(self, id, game, b):
+        super().__init__(id, game)
+        self.b = b
+
+    def s_should_lock(self):
+        return self.calc_points_unknown() < self.b
